@@ -5,7 +5,7 @@ use anyhow::{bail, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 use moltis_agents::tool_registry::AgentTool;
 
@@ -154,6 +154,8 @@ impl AgentTool for ExecTool {
             .map(PathBuf::from)
             .or_else(|| self.working_dir.clone());
 
+        info!(command, timeout_secs, ?working_dir, "exec tool invoked");
+
         let opts = ExecOpts {
             timeout: Duration::from_secs(timeout_secs),
             max_output_bytes: self.max_output_bytes,
@@ -162,6 +164,13 @@ impl AgentTool for ExecTool {
         };
 
         let result = exec_command(command, &opts).await?;
+        info!(
+            command,
+            exit_code = result.exit_code,
+            stdout_len = result.stdout.len(),
+            stderr_len = result.stderr.len(),
+            "exec tool completed"
+        );
         Ok(serde_json::to_value(&result)?)
     }
 }
