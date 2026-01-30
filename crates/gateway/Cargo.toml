@@ -1,43 +1,43 @@
 [package]
-name = "moltis-gateway"
-version.workspace = true
 edition.workspace = true
+name              = "moltis-gateway"
+version.workspace = true
 
 [dependencies]
-moltis-common = { workspace = true }
-moltis-protocol = { workspace = true }
-moltis-config = { workspace = true }
-moltis-sessions = { workspace = true }
-moltis-channels = { workspace = true }
-moltis-routing = { workspace = true }
-moltis-agents = { workspace = true }
-moltis-tools = { workspace = true }
-moltis-plugins = { workspace = true }
-moltis-cron = { workspace = true }
-moltis-media = { workspace = true }
-moltis-canvas = { workspace = true }
-moltis-oauth = { workspace = true }
-anyhow = { workspace = true }
-axum = { workspace = true }
-tokio = { workspace = true }
-tokio-tungstenite = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-tracing = { workspace = true }
-uuid = { workspace = true }
-futures = { workspace = true }
-tower-http = { version = "0.6", features = ["cors"] }
-hostname = "0.4"
-async-trait = "0.1"
-tokio-stream = { workspace = true }
-reqwest = { workspace = true }
+anyhow                = { workspace = true }
+async-trait           = "0.1"
+axum                  = { workspace = true }
 directories.workspace = true
+futures               = { workspace = true }
+hostname              = "0.4"
+moltis-agents         = { workspace = true }
+moltis-canvas         = { workspace = true }
+moltis-channels       = { workspace = true }
+moltis-common         = { workspace = true }
+moltis-config         = { workspace = true }
+moltis-cron           = { workspace = true }
+moltis-media          = { workspace = true }
+moltis-oauth          = { workspace = true }
+moltis-plugins        = { workspace = true }
+moltis-protocol       = { workspace = true }
+moltis-routing        = { workspace = true }
+moltis-sessions       = { workspace = true }
+moltis-tools          = { workspace = true }
+reqwest               = { workspace = true }
+serde                 = { workspace = true }
+serde_json            = { workspace = true }
+tokio                 = { workspace = true }
+tokio-stream          = { workspace = true }
+tokio-tungstenite     = { workspace = true }
+tower-http            = { features = ["cors"], version = "0.6" }
+tracing               = { workspace = true }
+uuid                  = { workspace = true }
 
 [features]
 default = ["web-ui"]
-web-ui = []
+web-ui  = []
 
 [dev-dependencies]
+reqwest           = { workspace = true }
+tempfile          = "3"
 tokio-tungstenite = { workspace = true }
-reqwest = { workspace = true }
-tempfile = "3"

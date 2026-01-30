@@ -1,9 +1,9 @@
 [package]
-name = "moltis-protocol"
-version.workspace = true
 edition.workspace = true
+name              = "moltis-protocol"
+version.workspace = true
 
 [dependencies]
-serde = { workspace = true }
+serde      = { workspace = true }
 serde_json = { workspace = true }
-thiserror = { workspace = true }
+thiserror  = { workspace = true }

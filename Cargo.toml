@@ -1,24 +1,24 @@
 [workspace]
 members = [
-	"crates/agents",
-	"crates/auto-reply",
-	"crates/browser",
-	"crates/canvas",
-	"crates/channels",
-	"crates/cli",
-	"crates/common",
-	"crates/config",
-	"crates/cron",
-	"crates/gateway",
-	"crates/media",
-	"crates/memory",
-	"crates/oauth",
-	"crates/onboarding",
-	"crates/plugins",
-	"crates/protocol",
-	"crates/routing",
-	"crates/sessions",
-	"crates/tools",
+  "crates/agents",
+  "crates/auto-reply",
+  "crates/browser",
+  "crates/canvas",
+  "crates/channels",
+  "crates/cli",
+  "crates/common",
+  "crates/config",
+  "crates/cron",
+  "crates/gateway",
+  "crates/media",
+  "crates/memory",
+  "crates/oauth",
+  "crates/onboarding",
+  "crates/plugins",
+  "crates/protocol",
+  "crates/routing",
+  "crates/sessions",
+  "crates/tools",
 ]
 resolver = "2"
 
@@ -29,30 +29,30 @@ version = "0.1.0"
 
 [workspace.dependencies]
 # Async runtime
-tokio = { version = "1", features = ["full"] }
+tokio = { features = ["full"], version = "1" }
 # HTTP/WS server
-axum = { version = "0.8", features = ["ws"] }
+axum = { features = ["ws"], version = "0.8" }
 # Serialization
-serde      = { version = "1", features = ["derive"] }
+serde      = { features = ["derive"], version = "1" }
 serde_json = "1"
 # Error handling
 anyhow    = "1"
 thiserror = "2"
 # Logging
 opentelemetry         = { version = "0.29" }
-opentelemetry-otlp    = { version = "0.29", features = ["tonic"] }
-opentelemetry_sdk     = { version = "0.29", features = ["rt-tokio"] }
+opentelemetry-otlp    = { features = ["tonic"], version = "0.29" }
+opentelemetry_sdk     = { features = ["rt-tokio"], version = "0.29" }
 tracing               = "0.1"
 tracing-opentelemetry = "0.30"
-tracing-subscriber    = { version = "0.3", features = ["env-filter", "json"] }
+tracing-subscriber    = { features = ["env-filter", "json"], version = "0.3" }
 # CLI
-clap = { version = "4", features = ["derive"] }
+clap = { features = ["derive"], version = "4" }
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+sqlx = { features = ["runtime-tokio", "sqlite"], version = "0.8" }
 # HTTP client
-reqwest = { version = "0.12", features = ["json", "stream"] }
+reqwest = { features = ["json", "stream"], version = "0.12" }
 # UUID
-uuid = { version = "1", features = ["v4"] }
+uuid = { features = ["v4"], version = "1" }
 # Async streams
 directories       = "6"
 dotenvy           = "0.15"
@@ -62,16 +62,15 @@ tokio-stream      = "0.1"
 tokio-tungstenite = "0.26"
 toml              = "0.8"
 # LLM provider crates (optional, behind feature flags)
-async-openai = { version = "0.32", features = ["chat-completion"] }
-genai        = "0.5"
+async-openai = { features = ["chat-completion"], version = "0.32" }
 base64       = "0.22"
-open         = "5.3"
 fd-lock      = "4"
+genai        = "0.5"
+open         = "5.3"
 sha2         = "0.10"
 
 # Workspace crates
-moltis-agents     = { path = "crates/agents", features = ["provider-openai-codex"] }
-moltis-oauth      = { path = "crates/oauth" }
+moltis-agents     = { features = ["provider-github-copilot", "provider-openai-codex"], path = "crates/agents" }
 moltis-auto-reply = { path = "crates/auto-reply" }
 moltis-browser    = { path = "crates/browser" }
 moltis-canvas     = { path = "crates/canvas" }
@@ -83,6 +82,7 @@ moltis-cron       = { path = "crates/cron" }
 moltis-gateway    = { path = "crates/gateway" }
 moltis-media      = { path = "crates/media" }
 moltis-memory     = { path = "crates/memory" }
+moltis-oauth      = { path = "crates/oauth" }
 moltis-onboarding = { path = "crates/onboarding" }
 moltis-plugins    = { path = "crates/plugins" }
 moltis-protocol   = { path = "crates/protocol" }

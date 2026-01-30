@@ -1,11 +1,11 @@
 [package]
-name = "moltis-onboarding"
-version.workspace = true
 edition.workspace = true
+name              = "moltis-onboarding"
+version.workspace = true
 
 [dependencies]
+anyhow        = { workspace = true }
 moltis-common = { workspace = true }
 moltis-config = { workspace = true }
-anyhow = { workspace = true }
-tokio = { workspace = true }
-tracing = { workspace = true }
+tokio         = { workspace = true }
+tracing       = { workspace = true }

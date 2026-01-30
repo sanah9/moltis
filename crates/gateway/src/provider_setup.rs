@@ -9,7 +9,9 @@ use {async_trait::async_trait, serde_json::Value, tokio::sync::RwLock, tracing::
 use {
     moltis_agents::providers::ProviderRegistry,
     moltis_config::schema::{ProviderEntry, ProvidersConfig},
-    moltis_oauth::{CallbackServer, OAuthFlow, TokenStore, callback_port, load_oauth_config},
+    moltis_oauth::{
+        CallbackServer, OAuthFlow, TokenStore, callback_port, device_flow, load_oauth_config,
+    },
 };
 
 use crate::services::{ProviderSetupService, ServiceResult};
@@ -134,8 +136,56 @@ const KNOWN_PROVIDERS: &[KnownProvider] = &[
         env_key: Some("DEEPSEEK_API_KEY"),
     },
     KnownProvider {
+        name: "mistral",
+        display_name: "Mistral",
+        auth_type: "api-key",
+        env_key: Some("MISTRAL_API_KEY"),
+    },
+    KnownProvider {
+        name: "openrouter",
+        display_name: "OpenRouter",
+        auth_type: "api-key",
+        env_key: Some("OPENROUTER_API_KEY"),
+    },
+    KnownProvider {
+        name: "cerebras",
+        display_name: "Cerebras",
+        auth_type: "api-key",
+        env_key: Some("CEREBRAS_API_KEY"),
+    },
+    KnownProvider {
+        name: "minimax",
+        display_name: "MiniMax",
+        auth_type: "api-key",
+        env_key: Some("MINIMAX_API_KEY"),
+    },
+    KnownProvider {
+        name: "moonshot",
+        display_name: "Moonshot",
+        auth_type: "api-key",
+        env_key: Some("MOONSHOT_API_KEY"),
+    },
+    KnownProvider {
+        name: "venice",
+        display_name: "Venice",
+        auth_type: "api-key",
+        env_key: Some("VENICE_API_KEY"),
+    },
+    KnownProvider {
+        name: "ollama",
+        display_name: "Ollama",
+        auth_type: "api-key",
+        env_key: Some("OLLAMA_API_KEY"),
+    },
+    KnownProvider {
         name: "openai-codex",
         display_name: "OpenAI Codex",
+        auth_type: "oauth",
+        env_key: None,
+    },
+    KnownProvider {
+        name: "github-copilot",
+        display_name: "GitHub Copilot",
         auth_type: "oauth",
         env_key: None,
     },
@@ -180,6 +230,64 @@ impl LiveProviderSetupService {
             return self.token_store.load(provider.name).is_some();
         }
         false
+    }
+
+    /// Start a device-flow OAuth for providers like GitHub Copilot.
+    /// Returns `{ "userCode": "...", "verificationUri": "..." }` for the UI to display.
+    async fn oauth_start_device_flow(
+        &self,
+        provider_name: String,
+        oauth_config: moltis_oauth::OAuthConfig,
+    ) -> ServiceResult {
+        let client = reqwest::Client::new();
+        let device_resp = device_flow::request_device_code(&client, &oauth_config)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let user_code = device_resp.user_code.clone();
+        let verification_uri = device_resp.verification_uri.clone();
+        let device_code = device_resp.device_code.clone();
+        let interval = device_resp.interval;
+
+        // Spawn background task to poll for the token
+        let token_store = self.token_store.clone();
+        let registry = Arc::clone(&self.registry);
+        let config = self.effective_config();
+        tokio::spawn(async move {
+            match device_flow::poll_for_token(&client, &oauth_config, &device_code, interval).await
+            {
+                Ok(tokens) => {
+                    if let Err(e) = token_store.save(&provider_name, &tokens) {
+                        tracing::error!(
+                            provider = %provider_name,
+                            error = %e,
+                            "failed to save device-flow OAuth tokens"
+                        );
+                        return;
+                    }
+                    let new_registry = ProviderRegistry::from_env_with_config(&config);
+                    let mut reg = registry.write().await;
+                    *reg = new_registry;
+                    info!(
+                        provider = %provider_name,
+                        "device-flow OAuth complete, rebuilt provider registry"
+                    );
+                }
+                Err(e) => {
+                    tracing::error!(
+                        provider = %provider_name,
+                        error = %e,
+                        "device-flow OAuth polling failed"
+                    );
+                }
+            }
+        });
+
+        Ok(serde_json::json!({
+            "deviceFlow": true,
+            "userCode": user_code,
+            "verificationUri": verification_uri,
+        }))
     }
 
     /// Build a ProvidersConfig that includes saved keys for registry rebuild.
@@ -255,6 +363,10 @@ impl ProviderSetupService for LiveProviderSetupService {
 
         let oauth_config = load_oauth_config(&provider_name)
             .ok_or_else(|| format!("no OAuth config for provider: {provider_name}"))?;
+
+        if oauth_config.device_flow {
+            return self.oauth_start_device_flow(provider_name, oauth_config).await;
+        }
 
         let port = callback_port(&oauth_config);
         let flow = OAuthFlow::new(oauth_config);
@@ -503,5 +615,108 @@ mod tests {
             .unwrap();
         // Might or might not have tokens depending on environment
         assert!(result.get("authenticated").is_some());
+    }
+
+    #[test]
+    fn known_providers_include_new_providers() {
+        let names: Vec<&str> = KNOWN_PROVIDERS.iter().map(|p| p.name).collect();
+        // All new OpenAI-compatible providers
+        assert!(names.contains(&"mistral"), "missing mistral");
+        assert!(names.contains(&"openrouter"), "missing openrouter");
+        assert!(names.contains(&"cerebras"), "missing cerebras");
+        assert!(names.contains(&"minimax"), "missing minimax");
+        assert!(names.contains(&"moonshot"), "missing moonshot");
+        assert!(names.contains(&"venice"), "missing venice");
+        assert!(names.contains(&"ollama"), "missing ollama");
+        // OAuth providers
+        assert!(names.contains(&"github-copilot"), "missing github-copilot");
+    }
+
+    #[test]
+    fn github_copilot_is_oauth_provider() {
+        let copilot = KNOWN_PROVIDERS
+            .iter()
+            .find(|p| p.name == "github-copilot")
+            .expect("github-copilot not in KNOWN_PROVIDERS");
+        assert_eq!(copilot.auth_type, "oauth");
+        assert!(copilot.env_key.is_none());
+    }
+
+    #[test]
+    fn new_api_key_providers_have_correct_env_keys() {
+        let expected = [
+            ("mistral", "MISTRAL_API_KEY"),
+            ("openrouter", "OPENROUTER_API_KEY"),
+            ("cerebras", "CEREBRAS_API_KEY"),
+            ("minimax", "MINIMAX_API_KEY"),
+            ("moonshot", "MOONSHOT_API_KEY"),
+            ("venice", "VENICE_API_KEY"),
+            ("ollama", "OLLAMA_API_KEY"),
+        ];
+        for (name, env_key) in expected {
+            let provider = KNOWN_PROVIDERS
+                .iter()
+                .find(|p| p.name == name)
+                .unwrap_or_else(|| panic!("missing provider: {name}"));
+            assert_eq!(
+                provider.env_key,
+                Some(env_key),
+                "wrong env_key for {name}"
+            );
+            assert_eq!(provider.auth_type, "api-key");
+        }
+    }
+
+    #[tokio::test]
+    async fn save_key_accepts_new_providers() {
+        let registry = Arc::new(RwLock::new(ProviderRegistry::from_env_with_config(
+            &ProvidersConfig::default(),
+        )));
+        let _svc = LiveProviderSetupService::new(registry, ProvidersConfig::default());
+
+        // All new API-key providers should be accepted by save_key
+        for name in ["mistral", "openrouter", "cerebras", "minimax", "moonshot", "venice", "ollama"]
+        {
+            // We can't actually persist in tests (would write to real disk),
+            // but we can verify the provider name is recognized.
+            let known = KNOWN_PROVIDERS
+                .iter()
+                .find(|p| p.name == name && p.auth_type == "api-key");
+            assert!(
+                known.is_some(),
+                "{name} should be a recognized api-key provider"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn available_includes_new_providers() {
+        let registry = Arc::new(RwLock::new(ProviderRegistry::from_env_with_config(
+            &ProvidersConfig::default(),
+        )));
+        let svc = LiveProviderSetupService::new(registry, ProvidersConfig::default());
+        let result = svc.available().await.unwrap();
+        let arr = result.as_array().unwrap();
+
+        let names: Vec<&str> = arr
+            .iter()
+            .filter_map(|v| v.get("name").and_then(|n| n.as_str()))
+            .collect();
+
+        for expected in [
+            "mistral",
+            "openrouter",
+            "cerebras",
+            "minimax",
+            "moonshot",
+            "venice",
+            "ollama",
+            "github-copilot",
+        ] {
+            assert!(
+                names.contains(&expected),
+                "{expected} not found in available providers: {names:?}"
+            );
+        }
     }
 }

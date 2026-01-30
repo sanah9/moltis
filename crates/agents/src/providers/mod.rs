@@ -10,6 +10,9 @@ pub mod async_openai_provider;
 #[cfg(feature = "provider-openai-codex")]
 pub mod openai_codex;
 
+#[cfg(feature = "provider-github-copilot")]
+pub mod github_copilot;
+
 use std::{collections::HashMap, sync::Arc};
 
 use moltis_config::schema::ProvidersConfig;
@@ -47,6 +50,84 @@ const OPENAI_MODELS: &[(&str, &str)] = &[
     ("o4-mini", "o4-mini"),
 ];
 
+/// Known Mistral models.
+const MISTRAL_MODELS: &[(&str, &str)] = &[
+    ("mistral-large-latest", "Mistral Large"),
+    ("codestral-latest", "Codestral"),
+];
+
+/// Known Cerebras models.
+const CEREBRAS_MODELS: &[(&str, &str)] = &[
+    ("llama-4-scout-17b-16e-instruct", "Llama 4 Scout (Cerebras)"),
+];
+
+/// Known MiniMax models.
+const MINIMAX_MODELS: &[(&str, &str)] = &[("MiniMax-M2.1", "MiniMax M2.1")];
+
+/// Known Moonshot models.
+const MOONSHOT_MODELS: &[(&str, &str)] = &[("kimi-k2.5", "Kimi K2.5")];
+
+/// OpenAI-compatible provider definition for table-driven registration.
+struct OpenAiCompatDef {
+    config_name: &'static str,
+    env_key: &'static str,
+    env_base_url_key: &'static str,
+    default_base_url: &'static str,
+    models: &'static [(&'static str, &'static str)],
+}
+
+const OPENAI_COMPAT_PROVIDERS: &[OpenAiCompatDef] = &[
+    OpenAiCompatDef {
+        config_name: "mistral",
+        env_key: "MISTRAL_API_KEY",
+        env_base_url_key: "MISTRAL_BASE_URL",
+        default_base_url: "https://api.mistral.ai/v1",
+        models: MISTRAL_MODELS,
+    },
+    OpenAiCompatDef {
+        config_name: "openrouter",
+        env_key: "OPENROUTER_API_KEY",
+        env_base_url_key: "OPENROUTER_BASE_URL",
+        default_base_url: "https://openrouter.ai/api/v1",
+        models: &[],
+    },
+    OpenAiCompatDef {
+        config_name: "cerebras",
+        env_key: "CEREBRAS_API_KEY",
+        env_base_url_key: "CEREBRAS_BASE_URL",
+        default_base_url: "https://api.cerebras.ai/v1",
+        models: CEREBRAS_MODELS,
+    },
+    OpenAiCompatDef {
+        config_name: "minimax",
+        env_key: "MINIMAX_API_KEY",
+        env_base_url_key: "MINIMAX_BASE_URL",
+        default_base_url: "https://api.minimax.chat/v1",
+        models: MINIMAX_MODELS,
+    },
+    OpenAiCompatDef {
+        config_name: "moonshot",
+        env_key: "MOONSHOT_API_KEY",
+        env_base_url_key: "MOONSHOT_BASE_URL",
+        default_base_url: "https://api.moonshot.ai/v1",
+        models: MOONSHOT_MODELS,
+    },
+    OpenAiCompatDef {
+        config_name: "venice",
+        env_key: "VENICE_API_KEY",
+        env_base_url_key: "VENICE_BASE_URL",
+        default_base_url: "https://api.venice.ai/api/v1",
+        models: &[],
+    },
+    OpenAiCompatDef {
+        config_name: "ollama",
+        env_key: "OLLAMA_API_KEY",
+        env_base_url_key: "OLLAMA_BASE_URL",
+        default_base_url: "http://127.0.0.1:11434/v1",
+        models: &[],
+    },
+];
+
 /// Registry of available LLM providers, keyed by model ID.
 pub struct ProviderRegistry {
     providers: HashMap<String, Arc<dyn LlmProvider>>,
@@ -82,6 +163,7 @@ impl ProviderRegistry {
 
         // Built-in providers first: they support tool calling.
         reg.register_builtin_providers(config);
+        reg.register_openai_compatible_providers(config);
 
         #[cfg(feature = "provider-async-openai")]
         {
@@ -98,6 +180,11 @@ impl ProviderRegistry {
         #[cfg(feature = "provider-openai-codex")]
         {
             reg.register_openai_codex_providers(config);
+        }
+
+        #[cfg(feature = "provider-github-copilot")]
+        {
+            reg.register_github_copilot_providers(config);
         }
 
         reg
@@ -286,6 +373,56 @@ impl ProviderRegistry {
         }
     }
 
+    #[cfg(feature = "provider-github-copilot")]
+    fn register_github_copilot_providers(&mut self, config: &ProvidersConfig) {
+        if !config.is_enabled("github-copilot") {
+            return;
+        }
+
+        if !github_copilot::has_stored_tokens() {
+            return;
+        }
+
+        if let Some(model_id) = config
+            .get("github-copilot")
+            .and_then(|e| e.model.as_deref())
+        {
+            if !self.providers.contains_key(model_id) {
+                let display = github_copilot::COPILOT_MODELS
+                    .iter()
+                    .find(|(id, _)| *id == model_id)
+                    .map(|(_, name)| name.to_string())
+                    .unwrap_or_else(|| format!("{model_id} (Copilot)"));
+                let provider =
+                    Arc::new(github_copilot::GitHubCopilotProvider::new(model_id.into()));
+                self.register(
+                    ModelInfo {
+                        id: model_id.into(),
+                        provider: "github-copilot".into(),
+                        display_name: display,
+                    },
+                    provider,
+                );
+            }
+            return;
+        }
+
+        for &(model_id, display_name) in github_copilot::COPILOT_MODELS {
+            if self.providers.contains_key(model_id) {
+                continue;
+            }
+            let provider = Arc::new(github_copilot::GitHubCopilotProvider::new(model_id.into()));
+            self.register(
+                ModelInfo {
+                    id: model_id.into(),
+                    provider: "github-copilot".into(),
+                    display_name: display_name.into(),
+                },
+                provider,
+            );
+        }
+    }
+
     fn register_builtin_providers(&mut self, config: &ProvidersConfig) {
         // Anthropic — register all known Claude models when API key is available.
         if config.is_enabled("anthropic") {
@@ -406,6 +543,88 @@ impl ProviderRegistry {
         }
     }
 
+    fn register_openai_compatible_providers(&mut self, config: &ProvidersConfig) {
+        for def in OPENAI_COMPAT_PROVIDERS {
+            if !config.is_enabled(def.config_name) {
+                continue;
+            }
+
+            let key = config
+                .get(def.config_name)
+                .and_then(|e| e.api_key.clone())
+                .or_else(|| std::env::var(def.env_key).ok());
+
+            // Ollama doesn't require an API key — use a dummy value.
+            let key = if def.config_name == "ollama" {
+                key.or_else(|| Some("ollama".into()))
+            } else {
+                key
+            };
+
+            let Some(key) = key.filter(|k| !k.is_empty()) else {
+                continue;
+            };
+
+            let base_url = config
+                .get(def.config_name)
+                .and_then(|e| e.base_url.clone())
+                .or_else(|| std::env::var(def.env_base_url_key).ok())
+                .unwrap_or_else(|| def.default_base_url.into());
+
+            // If user configured a specific model, register only that one.
+            if let Some(model_id) = config.get(def.config_name).and_then(|e| e.model.as_deref()) {
+                if !self.providers.contains_key(model_id) {
+                    let display = def
+                        .models
+                        .iter()
+                        .find(|(id, _)| *id == model_id)
+                        .map(|(_, name)| name.to_string())
+                        .unwrap_or_else(|| model_id.to_string());
+                    let provider = Arc::new(openai::OpenAiProvider::new_with_name(
+                        key.clone(),
+                        model_id.into(),
+                        base_url.clone(),
+                        def.config_name.into(),
+                    ));
+                    self.register(
+                        ModelInfo {
+                            id: model_id.into(),
+                            provider: def.config_name.into(),
+                            display_name: display,
+                        },
+                        provider,
+                    );
+                }
+                continue;
+            }
+
+            // No specific model — register all known models for this provider.
+            if def.models.is_empty() {
+                // "Bring your own model" providers: skip if no model configured.
+                continue;
+            }
+            for &(model_id, display_name) in def.models {
+                if self.providers.contains_key(model_id) {
+                    continue;
+                }
+                let provider = Arc::new(openai::OpenAiProvider::new_with_name(
+                    key.clone(),
+                    model_id.into(),
+                    base_url.clone(),
+                    def.config_name.into(),
+                ));
+                self.register(
+                    ModelInfo {
+                        id: model_id.into(),
+                        provider: def.config_name.into(),
+                        display_name: display_name.into(),
+                    },
+                    provider,
+                );
+            }
+        }
+    }
+
     pub fn get(&self, model_id: &str) -> Option<Arc<dyn LlmProvider>> {
         self.providers.get(model_id).cloned()
     }
@@ -445,5 +664,318 @@ impl ProviderRegistry {
             .map(|m| format!("{}: {}", m.provider, m.id))
             .collect::<Vec<_>>()
             .join(", ")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn model_lists_not_empty() {
+        assert!(!ANTHROPIC_MODELS.is_empty());
+        assert!(!OPENAI_MODELS.is_empty());
+        assert!(!MISTRAL_MODELS.is_empty());
+        assert!(!CEREBRAS_MODELS.is_empty());
+        assert!(!MINIMAX_MODELS.is_empty());
+        assert!(!MOONSHOT_MODELS.is_empty());
+    }
+
+    #[test]
+    fn model_lists_have_unique_ids() {
+        for models in [
+            ANTHROPIC_MODELS,
+            OPENAI_MODELS,
+            MISTRAL_MODELS,
+            CEREBRAS_MODELS,
+            MINIMAX_MODELS,
+            MOONSHOT_MODELS,
+        ] {
+            let mut ids: Vec<&str> = models.iter().map(|(id, _)| *id).collect();
+            ids.sort();
+            ids.dedup();
+            assert_eq!(ids.len(), models.len(), "duplicate model IDs found");
+        }
+    }
+
+    #[test]
+    fn openai_compat_providers_have_unique_names() {
+        let mut names: Vec<&str> = OPENAI_COMPAT_PROVIDERS
+            .iter()
+            .map(|d| d.config_name)
+            .collect();
+        names.sort();
+        names.dedup();
+        assert_eq!(names.len(), OPENAI_COMPAT_PROVIDERS.len());
+    }
+
+    #[test]
+    fn openai_compat_providers_have_valid_urls() {
+        for def in OPENAI_COMPAT_PROVIDERS {
+            assert!(
+                def.default_base_url.starts_with("http://")
+                    || def.default_base_url.starts_with("https://"),
+                "{}: invalid base URL: {}",
+                def.config_name,
+                def.default_base_url
+            );
+        }
+    }
+
+    #[test]
+    fn openai_compat_providers_env_keys_not_empty() {
+        for def in OPENAI_COMPAT_PROVIDERS {
+            assert!(
+                !def.env_key.is_empty(),
+                "{}: env_key is empty",
+                def.config_name
+            );
+            assert!(
+                !def.env_base_url_key.is_empty(),
+                "{}: env_base_url_key is empty",
+                def.config_name
+            );
+        }
+    }
+
+    #[test]
+    fn registry_from_env_does_not_panic() {
+        // Just ensure it doesn't panic with no env vars set.
+        let reg = ProviderRegistry::from_env();
+        let _ = reg.provider_summary();
+    }
+
+    #[test]
+    fn registry_register_and_get() {
+        let mut reg = ProviderRegistry::from_env_with_config(&ProvidersConfig::default());
+        let initial_count = reg.list_models().len();
+
+        let provider = Arc::new(openai::OpenAiProvider::new(
+            "test-key".into(),
+            "test-model".into(),
+            "https://example.com".into(),
+        ));
+        reg.register(
+            ModelInfo {
+                id: "test-model".into(),
+                provider: "test".into(),
+                display_name: "Test Model".into(),
+            },
+            provider,
+        );
+
+        assert_eq!(reg.list_models().len(), initial_count + 1);
+        assert!(reg.get("test-model").is_some());
+        assert!(reg.get("nonexistent").is_none());
+    }
+
+    #[test]
+    fn mistral_registers_with_api_key() {
+        let mut config = ProvidersConfig::default();
+        config.providers.insert(
+            "mistral".into(),
+            moltis_config::schema::ProviderEntry {
+                api_key: Some("sk-test-mistral".into()),
+                ..Default::default()
+            },
+        );
+
+        let reg = ProviderRegistry::from_env_with_config(&config);
+        // Should have registered Mistral models
+        let mistral_models: Vec<_> = reg
+            .list_models()
+            .iter()
+            .filter(|m| m.provider == "mistral")
+            .collect();
+        assert!(
+            !mistral_models.is_empty(),
+            "expected Mistral models to be registered"
+        );
+        for m in &mistral_models {
+            assert!(reg.get(&m.id).is_some());
+            assert_eq!(reg.get(&m.id).unwrap().name(), "mistral");
+        }
+    }
+
+    #[test]
+    fn cerebras_registers_with_api_key() {
+        let mut config = ProvidersConfig::default();
+        config.providers.insert(
+            "cerebras".into(),
+            moltis_config::schema::ProviderEntry {
+                api_key: Some("sk-test-cerebras".into()),
+                ..Default::default()
+            },
+        );
+
+        let reg = ProviderRegistry::from_env_with_config(&config);
+        let cerebras_models: Vec<_> = reg
+            .list_models()
+            .iter()
+            .filter(|m| m.provider == "cerebras")
+            .collect();
+        assert!(!cerebras_models.is_empty());
+    }
+
+    #[test]
+    fn minimax_registers_with_api_key() {
+        let mut config = ProvidersConfig::default();
+        config.providers.insert(
+            "minimax".into(),
+            moltis_config::schema::ProviderEntry {
+                api_key: Some("sk-test-minimax".into()),
+                ..Default::default()
+            },
+        );
+
+        let reg = ProviderRegistry::from_env_with_config(&config);
+        assert!(reg.list_models().iter().any(|m| m.provider == "minimax"));
+    }
+
+    #[test]
+    fn moonshot_registers_with_api_key() {
+        let mut config = ProvidersConfig::default();
+        config.providers.insert(
+            "moonshot".into(),
+            moltis_config::schema::ProviderEntry {
+                api_key: Some("sk-test-moonshot".into()),
+                ..Default::default()
+            },
+        );
+
+        let reg = ProviderRegistry::from_env_with_config(&config);
+        assert!(reg.list_models().iter().any(|m| m.provider == "moonshot"));
+    }
+
+    #[test]
+    fn openrouter_requires_model_in_config() {
+        // OpenRouter has no default models — without a model in config it registers nothing.
+        let mut config = ProvidersConfig::default();
+        config.providers.insert(
+            "openrouter".into(),
+            moltis_config::schema::ProviderEntry {
+                api_key: Some("sk-test-or".into()),
+                ..Default::default()
+            },
+        );
+
+        let reg = ProviderRegistry::from_env_with_config(&config);
+        assert!(!reg.list_models().iter().any(|m| m.provider == "openrouter"));
+    }
+
+    #[test]
+    fn openrouter_registers_with_model_in_config() {
+        let mut config = ProvidersConfig::default();
+        config.providers.insert(
+            "openrouter".into(),
+            moltis_config::schema::ProviderEntry {
+                api_key: Some("sk-test-or".into()),
+                model: Some("anthropic/claude-3-haiku".into()),
+                ..Default::default()
+            },
+        );
+
+        let reg = ProviderRegistry::from_env_with_config(&config);
+        let or_models: Vec<_> = reg
+            .list_models()
+            .iter()
+            .filter(|m| m.provider == "openrouter")
+            .collect();
+        assert_eq!(or_models.len(), 1);
+        assert_eq!(or_models[0].id, "anthropic/claude-3-haiku");
+    }
+
+    #[test]
+    fn ollama_registers_without_api_key_env() {
+        // Ollama should use a dummy key if no env var is set.
+        let mut config = ProvidersConfig::default();
+        config.providers.insert(
+            "ollama".into(),
+            moltis_config::schema::ProviderEntry {
+                model: Some("llama3".into()),
+                ..Default::default()
+            },
+        );
+
+        let reg = ProviderRegistry::from_env_with_config(&config);
+        assert!(reg.list_models().iter().any(|m| m.provider == "ollama"));
+        assert!(reg.get("llama3").is_some());
+    }
+
+    #[test]
+    fn venice_requires_model_in_config() {
+        let mut config = ProvidersConfig::default();
+        config.providers.insert(
+            "venice".into(),
+            moltis_config::schema::ProviderEntry {
+                api_key: Some("sk-test-venice".into()),
+                ..Default::default()
+            },
+        );
+
+        let reg = ProviderRegistry::from_env_with_config(&config);
+        assert!(!reg.list_models().iter().any(|m| m.provider == "venice"));
+    }
+
+    #[test]
+    fn disabled_provider_not_registered() {
+        let mut config = ProvidersConfig::default();
+        config.providers.insert(
+            "mistral".into(),
+            moltis_config::schema::ProviderEntry {
+                api_key: Some("sk-test".into()),
+                enabled: false,
+                ..Default::default()
+            },
+        );
+
+        let reg = ProviderRegistry::from_env_with_config(&config);
+        assert!(!reg.list_models().iter().any(|m| m.provider == "mistral"));
+    }
+
+    #[test]
+    fn provider_name_returned_by_openai_provider() {
+        let provider =
+            openai::OpenAiProvider::new_with_name("k".into(), "m".into(), "u".into(), "mistral".into());
+        assert_eq!(provider.name(), "mistral");
+    }
+
+    #[test]
+    fn custom_base_url_from_config() {
+        let mut config = ProvidersConfig::default();
+        config.providers.insert(
+            "mistral".into(),
+            moltis_config::schema::ProviderEntry {
+                api_key: Some("sk-test".into()),
+                base_url: Some("https://custom.mistral.example.com/v1".into()),
+                ..Default::default()
+            },
+        );
+
+        let reg = ProviderRegistry::from_env_with_config(&config);
+        assert!(reg.list_models().iter().any(|m| m.provider == "mistral"));
+    }
+
+    #[test]
+    fn specific_model_override() {
+        let mut config = ProvidersConfig::default();
+        config.providers.insert(
+            "mistral".into(),
+            moltis_config::schema::ProviderEntry {
+                api_key: Some("sk-test".into()),
+                model: Some("mistral-small-latest".into()),
+                ..Default::default()
+            },
+        );
+
+        let reg = ProviderRegistry::from_env_with_config(&config);
+        let mistral_models: Vec<_> = reg
+            .list_models()
+            .iter()
+            .filter(|m| m.provider == "mistral")
+            .collect();
+        // Should only have the one specified model, not the full default list
+        assert_eq!(mistral_models.len(), 1);
+        assert_eq!(mistral_models[0].id, "mistral-small-latest");
     }
 }

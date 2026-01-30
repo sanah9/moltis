@@ -1,46 +1,42 @@
 [package]
-name = "moltis-cli"
-version.workspace = true
+description       = "Rust version of moltbot"
 edition.workspace = true
-description = "Rust version of moltbot"
-license = "MIT"
-homepage = "https://docs.molt.bot/"
+homepage          = "https://docs.molt.bot/"
+license           = "MIT"
+name              = "moltis-cli"
+version.workspace = true
 
 [package.metadata.deb]
-name = "moltis"
+assets     = [["755", "target/release/moltis", "usr/bin/"]]
+copyright  = "2025, Moltis Contributors"
+depends    = "$auto"
 maintainer = "Moltis Contributors"
-copyright = "2025, Moltis Contributors"
-depends = "$auto"
-section = "net"
-priority = "optional"
-assets = [
-    ["target/release/moltis", "usr/bin/", "755"],
-]
+name       = "moltis"
+priority   = "optional"
+section    = "net"
 
 [package.metadata.generate-rpm]
-name = "moltis"
+assets  = [{ dest = "/usr/bin/moltis", mode = "0755", source = "target/release/moltis" }]
 license = "MIT"
+name    = "moltis"
 summary = "Rust version of moltbot"
-url = "https://docs.molt.bot/"
-assets = [
-    { source = "target/release/moltis", dest = "/usr/bin/moltis", mode = "0755" },
-]
+url     = "https://docs.molt.bot/"
 
 [[bin]]
 name = "moltis"
 path = "src/main.rs"
 
 [dependencies]
-moltis-common = { workspace = true }
-moltis-gateway = { workspace = true }
-moltis-config = { workspace = true }
-moltis-onboarding = { workspace = true }
-moltis-agents = { workspace = true }
-anyhow = { workspace = true }
-clap = { workspace = true }
-tokio = { workspace = true }
-tracing = { workspace = true }
+anyhow             = { workspace = true }
+clap               = { workspace = true }
+dotenvy            = { workspace = true }
+moltis-agents      = { workspace = true }
+moltis-common      = { workspace = true }
+moltis-config      = { workspace = true }
+moltis-gateway     = { workspace = true }
+moltis-oauth       = { workspace = true }
+moltis-onboarding  = { workspace = true }
+open               = { workspace = true }
+tokio              = { workspace = true }
+tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
-dotenvy = { workspace = true }
-moltis-oauth = { workspace = true }
-open = { workspace = true }

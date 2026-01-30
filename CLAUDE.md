@@ -42,7 +42,37 @@ cargo test -- --nocapture            # Run tests with stdout visible
 cargo +nightly fmt       # Format code (uses nightly)
 cargo +nightly clippy    # Run linter (uses nightly)
 cargo check              # Fast compile check without producing binary
+taplo fmt                # Format TOML files (Cargo.toml, etc.)
 ```
+
+When editing `Cargo.toml` or other TOML files, run `taplo fmt` to format them
+according to the project's `taplo.toml` configuration.
+
+## Provider Implementation Guidelines
+
+### Async all the way down
+
+Never use `block_on`, `std::thread::scope` + `rt.block_on`, or any blocking
+call inside an async context (tokio runtime). This causes a panic:
+"Cannot start a runtime from within a runtime". All token exchanges,
+HTTP calls, and I/O in provider methods (`complete`, `stream`) must be `async`
+and use `.await`. If a helper needs to make HTTP requests, make it `async fn`.
+
+### Model lists for providers
+
+When adding a new LLM provider, make the model list as complete as possible.
+Models vary by plan/org and can change, so keep the list intentionally broad —
+if a model isn't available the provider API will return an error and the user
+can remove it from their config.
+
+To find the correct model IDs:
+- Check the upstream open-source implementations in `../clawdbot/` (TypeScript
+  reference), as well as projects like OpenAI Codex CLI, Claude Code, opencode,
+  etc.
+- For "bring your own model" providers (OpenRouter, Venice, Ollama), don't
+  hardcode a model list — require the user to specify a model via config.
+- Ideally, query the provider's `/models` endpoint at registration time to
+  build the list dynamically (not yet implemented).
 
 ## Git Workflow
 

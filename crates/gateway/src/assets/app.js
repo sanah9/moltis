@@ -817,6 +817,23 @@
           window.open(res.payload.authUrl, "_blank");
           connectBtn.textContent = "Waiting for auth...";
           pollOAuthStatus(provider);
+        } else if (res && res.ok && res.payload && res.payload.deviceFlow) {
+          // Device-flow OAuth: show user code and verification URL
+          connectBtn.textContent = "Waiting for auth...";
+          desc.style.color = "";
+          desc.textContent = "";
+          var linkEl = document.createElement("a");
+          linkEl.href = res.payload.verificationUri;
+          linkEl.target = "_blank";
+          linkEl.style.color = "var(--accent)";
+          linkEl.textContent = res.payload.verificationUri;
+          var codeEl = document.createElement("strong");
+          codeEl.textContent = res.payload.userCode;
+          desc.appendChild(document.createTextNode("Go to "));
+          desc.appendChild(linkEl);
+          desc.appendChild(document.createTextNode(" and enter code: "));
+          desc.appendChild(codeEl);
+          pollOAuthStatus(provider);
         } else {
           connectBtn.disabled = false;
           connectBtn.textContent = "Connect";
