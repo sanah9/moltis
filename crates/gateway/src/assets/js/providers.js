@@ -512,7 +512,7 @@ function renderLocalModelSelection(provider, sysInfo, modelsData) {
 	wrapper.appendChild(modelsTitle);
 
 	var modelsList = document.createElement("div");
-	modelsList.className = "flex flex-col gap-2 max-h-64 overflow-y-auto";
+	modelsList.className = "flex flex-col gap-2";
 	modelsList.id = "local-model-list";
 
 	// Helper to render models filtered by backend
