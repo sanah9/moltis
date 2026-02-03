@@ -137,10 +137,10 @@ pub fn config_dir() -> Option<PathBuf> {
     if let Some(dir) = config_dir_override() {
         return Some(dir);
     }
-    if let Ok(dir) = std::env::var("MOLTIS_CONFIG_DIR") {
-        if !dir.is_empty() {
-            return Some(PathBuf::from(dir));
-        }
+    if let Ok(dir) = std::env::var("MOLTIS_CONFIG_DIR")
+        && !dir.is_empty()
+    {
+        return Some(PathBuf::from(dir));
     }
     home_dir().map(|h| h.join(".config").join("moltis"))
 }
@@ -151,10 +151,10 @@ pub fn data_dir() -> PathBuf {
     if let Some(dir) = data_dir_override() {
         return dir;
     }
-    if let Ok(dir) = std::env::var("MOLTIS_DATA_DIR") {
-        if !dir.is_empty() {
-            return PathBuf::from(dir);
-        }
+    if let Ok(dir) = std::env::var("MOLTIS_DATA_DIR")
+        && !dir.is_empty()
+    {
+        return PathBuf::from(dir);
     }
     home_dir()
         .map(|h| h.join(".moltis"))
@@ -316,10 +316,10 @@ fn parse_env_value(val: &str) -> serde_json::Value {
     if let Ok(n) = val.parse::<i64>() {
         return serde_json::Value::Number(n.into());
     }
-    if let Ok(n) = val.parse::<f64>() {
-        if let Some(n) = serde_json::Number::from_f64(n) {
-            return serde_json::Value::Number(n);
-        }
+    if let Ok(n) = val.parse::<f64>()
+        && let Some(n) = serde_json::Number::from_f64(n)
+    {
+        return serde_json::Value::Number(n);
     }
     serde_json::Value::String(val.to_string())
 }
@@ -337,10 +337,10 @@ fn set_nested(root: &mut serde_json::Value, path: &[String], val: serde_json::Va
             }
             return;
         }
-        if !current.get(key).is_some_and(|v| v.is_object()) {
-            if let serde_json::Value::Object(map) = current {
-                map.insert(key.clone(), serde_json::Value::Object(Default::default()));
-            }
+        if !current.get(key).is_some_and(|v| v.is_object())
+            && let serde_json::Value::Object(map) = current
+        {
+            map.insert(key.clone(), serde_json::Value::Object(Default::default()));
         }
         current = current.get_mut(key).unwrap();
     }
@@ -388,7 +388,7 @@ mod tests {
     #[test]
     fn parse_env_value_number() {
         assert_eq!(parse_env_value("42"), serde_json::json!(42));
-        assert_eq!(parse_env_value("3.14"), serde_json::json!(3.14));
+        assert_eq!(parse_env_value("1.5"), serde_json::json!(1.5));
     }
 
     #[test]
