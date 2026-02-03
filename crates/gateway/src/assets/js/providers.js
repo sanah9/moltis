@@ -454,16 +454,22 @@ function renderLocalModelSelection(provider, sysInfo, modelsData) {
 
 			// Show install instructions for unavailable backends
 			if (!b.available && b.id === "MLX") {
-				var installHint = document.createElement("div");
-				installHint.className = "install-hint";
-				// Use detected install commands from server, fallback to pip
 				var cmds = b.installCommands || ["pip install mlx-lm"];
-				if (cmds.length === 1) {
-					installHint.innerHTML = `Install with: <code>${cmds[0]}</code>`;
-				} else {
-					installHint.innerHTML = `Install with any of:<br>${cmds.map((c) => `<code>${c}</code>`).join("<br>")}`;
-				}
-				card.appendChild(installHint);
+				var tpl = document.getElementById("tpl-install-hint");
+				var hint = tpl.content.cloneNode(true).firstElementChild;
+				var label = hint.querySelector("[data-install-label]");
+				var container = hint.querySelector("[data-install-commands]");
+
+				label.textContent = cmds.length === 1 ? "Install with:" : "Install with any of:";
+
+				var cmdTpl = document.getElementById("tpl-install-cmd");
+				cmds.forEach((c) => {
+					var cmdEl = cmdTpl.content.cloneNode(true).firstElementChild;
+					cmdEl.textContent = c;
+					container.appendChild(cmdEl);
+				});
+
+				card.appendChild(hint);
 			}
 
 			if (b.available) {
