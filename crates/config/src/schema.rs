@@ -78,6 +78,7 @@ pub struct MoltisConfig {
     pub channels: ChannelsConfig,
     pub tls: TlsConfig,
     pub auth: AuthConfig,
+    pub metrics: MetricsConfig,
     pub identity: AgentIdentity,
     pub user: UserProfile,
     pub hooks: Option<HooksConfig>,
@@ -258,6 +259,31 @@ fn default_hook_timeout() -> u64 {
 pub struct AuthConfig {
     /// When true, authentication is explicitly disabled (no login required).
     pub disabled: bool,
+}
+
+/// Metrics and observability configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MetricsConfig {
+    /// Whether metrics collection is enabled.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Whether to expose the `/metrics` Prometheus endpoint.
+    #[serde(default = "default_true")]
+    pub prometheus_endpoint: bool,
+    /// Additional labels to add to all metrics.
+    #[serde(default)]
+    pub labels: HashMap<String, String>,
+}
+
+impl Default for MetricsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            prometheus_endpoint: true,
+            labels: HashMap::new(),
+        }
+    }
 }
 
 impl MoltisConfig {

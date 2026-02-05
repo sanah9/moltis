@@ -7,6 +7,9 @@ use std::{
     time::Instant,
 };
 
+#[cfg(feature = "metrics")]
+use moltis_metrics::MetricsHandle;
+
 use tokio::sync::{RwLock, mpsc, oneshot};
 
 use moltis_protocol::ConnectParams;
@@ -191,6 +194,9 @@ pub struct GatewayState {
     pub port: u16,
     /// Last error per run_id (short-lived, for send_sync to retrieve).
     pub run_errors: RwLock<HashMap<String, String>>,
+    /// Metrics handle for Prometheus export (None if metrics disabled).
+    #[cfg(feature = "metrics")]
+    pub metrics_handle: Option<MetricsHandle>,
 }
 
 impl GatewayState {
@@ -211,6 +217,8 @@ impl GatewayState {
             None,
             None,
             18789,
+            #[cfg(feature = "metrics")]
+            None,
         )
     }
 
@@ -232,6 +240,8 @@ impl GatewayState {
             None,
             None,
             18789,
+            #[cfg(feature = "metrics")]
+            None,
         )
     }
 
@@ -248,6 +258,7 @@ impl GatewayState {
         hook_registry: Option<Arc<moltis_common::hooks::HookRegistry>>,
         memory_manager: Option<Arc<moltis_memory::manager::MemoryManager>>,
         port: u16,
+        #[cfg(feature = "metrics")] metrics_handle: Option<MetricsHandle>,
     ) -> Arc<Self> {
         let hostname = hostname::get()
             .ok()
@@ -281,6 +292,8 @@ impl GatewayState {
             port,
             heartbeat_config: RwLock::new(moltis_config::schema::HeartbeatConfig::default()),
             run_errors: RwLock::new(HashMap::new()),
+            #[cfg(feature = "metrics")]
+            metrics_handle,
         })
     }
 

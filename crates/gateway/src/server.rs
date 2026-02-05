@@ -85,6 +85,15 @@ pub fn build_gateway_app(state: Arc<GatewayState>, methods: Arc<MethodRegistry>)
         .route("/health", get(health_handler))
         .route("/ws", get(ws_upgrade_handler));
 
+    // Add Prometheus metrics endpoint (unauthenticated for scraping).
+    #[cfg(feature = "metrics")]
+    {
+        router = router.route(
+            "/metrics",
+            get(crate::metrics_routes::prometheus_metrics_handler),
+        );
+    }
+
     // Nest auth routes if credential store is available.
     if let Some(ref cred_store) = state.credential_store {
         let auth_state = AuthState {
@@ -138,11 +147,28 @@ pub fn build_gateway_app(state: Arc<GatewayState>, methods: Arc<MethodRegistry>)
             .route(
                 "/api/env/{id}",
                 axum::routing::delete(crate::env_routes::env_delete),
+            );
+
+        // Add metrics API routes (protected).
+        #[cfg(feature = "metrics")]
+        let protected = protected
+            .route(
+                "/api/metrics",
+                get(crate::metrics_routes::api_metrics_handler),
             )
-            .layer(axum::middleware::from_fn_with_state(
-                app_state.clone(),
-                crate::auth_middleware::require_auth,
-            ));
+            .route(
+                "/api/metrics/summary",
+                get(crate::metrics_routes::api_metrics_summary_handler),
+            )
+            .route(
+                "/api/metrics/timeseries",
+                get(crate::metrics_routes::api_metrics_timeseries_handler),
+            );
+
+        let protected = protected.layer(axum::middleware::from_fn_with_state(
+            app_state.clone(),
+            crate::auth_middleware::require_auth,
+        ));
 
         // Mount tailscale routes (protected) when the feature is enabled.
         #[cfg(feature = "tailscale")]
@@ -1045,6 +1071,32 @@ pub async fn start_gateway(
     let tls_active_for_state = config.tls.enabled;
     #[cfg(not(feature = "tls"))]
     let tls_active_for_state = false;
+
+    // Initialize metrics system.
+    #[cfg(feature = "metrics")]
+    let metrics_handle = {
+        let metrics_config = moltis_metrics::MetricsRecorderConfig {
+            enabled: config.metrics.enabled,
+            prefix: None,
+            global_labels: vec![
+                ("service".to_string(), "moltis-gateway".to_string()),
+                ("version".to_string(), env!("CARGO_PKG_VERSION").to_string()),
+            ],
+        };
+        match moltis_metrics::init_metrics(metrics_config) {
+            Ok(handle) => {
+                if config.metrics.enabled {
+                    info!("Metrics collection enabled");
+                }
+                Some(handle)
+            },
+            Err(e) => {
+                warn!("Failed to initialize metrics: {e}");
+                None
+            },
+        }
+    };
+
     let state = GatewayState::with_options(
         resolved_auth,
         services,
@@ -1057,6 +1109,8 @@ pub async fn start_gateway(
         hook_registry.clone(),
         memory_manager.clone(),
         port,
+        #[cfg(feature = "metrics")]
+        metrics_handle,
     );
 
     // Generate a one-time setup code if setup is pending and auth is not disabled.
