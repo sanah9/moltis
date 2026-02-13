@@ -97,7 +97,8 @@ encoding_rs  = "0.8"
 fd-lock      = "4"
 genai        = "0.5"
 gix          = "0.78"
-llama-cpp-2  = "0.1"
+# Path to local clone with iOS support (ios-cmake + build.rs); use git dep when using your fork.
+llama-cpp-2  = { path = "../third_party/llama-cpp-rs/llama-cpp-2" }
 mockito      = "1.7"
 open         = "5.3"
 rand         = "0.9"
