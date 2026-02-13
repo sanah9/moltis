@@ -903,6 +903,23 @@ impl ProviderRegistry {
             .and_then(|e| e.base_url.as_deref()) // Reuse base_url for model_path
             .map(PathBuf::from);
 
+        // Resolve model_path: if saved path does not exist (e.g. stale iOS container path),
+        // try current data_dir/models/<filename> so bundled/copied model is found.
+        let resolved_model_path = user_model_path.as_ref().and_then(|path| {
+            if path.exists() {
+                Some(path.clone())
+            } else if let Some(filename) = path.file_name() {
+                let fallback = local_llm::models::default_models_dir().join(filename);
+                if fallback.exists() {
+                    Some(fallback)
+                } else {
+                    user_model_path.clone()
+                }
+            } else {
+                user_model_path.clone()
+            }
+        });
+
         // Register each model
         for model_id in model_ids {
             if self.has_provider_model("local-llm", &model_id) {
@@ -921,7 +938,7 @@ impl ProviderRegistry {
             // Use LocalLlmProvider which auto-detects backend based on model type
             let llm_config = local_llm::LocalLlmConfig {
                 model_id: model_id.clone(),
-                model_path: user_model_path.clone(),
+                model_path: resolved_model_path.clone(),
                 backend: None, // Auto-detect based on model type
                 context_size: None,
                 gpu_layers: 0,

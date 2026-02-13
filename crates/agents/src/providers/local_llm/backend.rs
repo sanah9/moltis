@@ -288,10 +288,13 @@ pub mod gguf {
             let backend = LlamaBackend::init().context("initializing llama backend")?;
 
             let mut model_params = LlamaModelParams::default();
-
+            // Explicitly set n_gpu_layers: default (-1) means "all layers to GPU", which can
+            // crash on iOS Simulator (Metal/XPC). Use 0 for CPU-only when gpu_layers is 0.
+            model_params = model_params.with_n_gpu_layers(config.gpu_layers);
             if config.gpu_layers > 0 {
-                model_params = model_params.with_n_gpu_layers(config.gpu_layers);
                 info!(gpu_layers = config.gpu_layers, "GPU offloading enabled");
+            } else {
+                info!("GPU layers 0, using CPU only (avoids Metal issues on iOS Simulator)");
             }
 
             let model = LlamaModel::load_from_file(&backend, &model_path, &model_params)
