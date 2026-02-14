@@ -100,6 +100,18 @@ pub struct DownloadProgress {
 /// Models support both GGUF and MLX formats where available.
 pub static MODEL_REGISTRY: &[LocalModelDef] = &[
     // ── 4GB tier (Tiny) ────────────────────────────────────────────────────
+    // Default bundled model for mobile (app ships Llama-3.2-1B-Instruct-Q4_0.gguf).
+    LocalModelDef {
+        id: "llama-3.2-1b-bundled",
+        display_name: "Llama 3.2 1B (Q4_0, bundled)",
+        gguf_repo: "bartowski/Llama-3.2-1B-Instruct-GGUF",
+        gguf_filename: "Llama-3.2-1B-Instruct-Q4_0.gguf",
+        mlx_repo: None,
+        min_ram_gb: 4,
+        context_window: 128_000,
+        chat_template: Some(ChatTemplateHint::Llama3),
+        format: ModelFormat::Gguf,
+    },
     LocalModelDef {
         id: "qwen2.5-coder-1.5b-q4_k_m",
         display_name: "Qwen 2.5 Coder 1.5B (Q4_K_M)",
