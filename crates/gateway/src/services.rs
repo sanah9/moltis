@@ -213,6 +213,9 @@ pub trait SessionService: Send + Sync {
     async fn preview(&self, params: Value) -> ServiceResult;
     async fn resolve(&self, params: Value) -> ServiceResult;
     async fn patch(&self, params: Value) -> ServiceResult;
+    async fn share_create(&self, params: Value) -> ServiceResult;
+    async fn share_list(&self, params: Value) -> ServiceResult;
+    async fn share_revoke(&self, params: Value) -> ServiceResult;
     async fn reset(&self, params: Value) -> ServiceResult;
     async fn delete(&self, params: Value) -> ServiceResult;
     async fn compact(&self, params: Value) -> ServiceResult;
@@ -241,6 +244,18 @@ impl SessionService for NoopSessionService {
 
     async fn patch(&self, _p: Value) -> ServiceResult {
         Ok(serde_json::json!({}))
+    }
+
+    async fn share_create(&self, _p: Value) -> ServiceResult {
+        Err("session sharing not available".into())
+    }
+
+    async fn share_list(&self, _p: Value) -> ServiceResult {
+        Ok(serde_json::json!([]))
+    }
+
+    async fn share_revoke(&self, _p: Value) -> ServiceResult {
+        Err("session sharing not available".into())
     }
 
     async fn reset(&self, _p: Value) -> ServiceResult {
@@ -1908,6 +1923,8 @@ pub trait ProviderSetupService: Send + Sync {
     async fn validate_key(&self, params: Value) -> ServiceResult;
     /// Save model preference for a configured provider (without changing credentials).
     async fn save_model(&self, params: Value) -> ServiceResult;
+    /// Save multiple model preferences for a provider (replaces existing saved models).
+    async fn save_models(&self, params: Value) -> ServiceResult;
 }
 
 // ── Local LLM ───────────────────────────────────────────────────────────────
@@ -1999,6 +2016,10 @@ impl ProviderSetupService for NoopProviderSetupService {
     async fn save_model(&self, _p: Value) -> ServiceResult {
         Err("provider setup not configured".into())
     }
+
+    async fn save_models(&self, _p: Value) -> ServiceResult {
+        Err("provider setup not configured".into())
+    }
 }
 
 // ── Project ─────────────────────────────────────────────────────────────────
@@ -2079,6 +2100,8 @@ pub struct GatewayServices {
     pub session_metadata: Option<Arc<moltis_sessions::metadata::SqliteSessionMetadata>>,
     /// Optional session store for message-index lookups (e.g. deduplication).
     pub session_store: Option<Arc<moltis_sessions::store::SessionStore>>,
+    /// Optional session share store for immutable snapshot links.
+    pub session_share_store: Option<Arc<crate::share_store::ShareStore>>,
 }
 
 impl GatewayServices {
@@ -2139,6 +2162,7 @@ impl GatewayServices {
             channel_outbound: None,
             session_metadata: None,
             session_store: None,
+            session_share_store: None,
         }
     }
 
@@ -2167,6 +2191,11 @@ impl GatewayServices {
 
     pub fn with_session_store(mut self, store: Arc<moltis_sessions::store::SessionStore>) -> Self {
         self.session_store = Some(store);
+        self
+    }
+
+    pub fn with_session_share_store(mut self, store: Arc<crate::share_store::ShareStore>) -> Self {
+        self.session_share_store = Some(store);
         self
     }
 
