@@ -75,11 +75,23 @@ impl GgufModelDef {
 /// Model registry — all known local LLM models organized by backend and memory tier.
 ///
 /// Models are listed in recommended order within each tier.
+/// iOS mobile: 4GB tier is suitable; 8GB tier may work on high-end devices; 16GB+ not for typical phones.
 pub static MODEL_REGISTRY: &[GgufModelDef] = &[
     // ════════════════════════════════════════════════════════════════════════
     // GGUF Models (llama.cpp)
     // ════════════════════════════════════════════════════════════════════════
-    // ── 4GB tier (Tiny) ────────────────────────────────────────────────────
+    // ── 4GB tier (Tiny); suitable for iOS mobile ────────────────────────────
+    // Default bundled model for mobile (app ships Llama-3.2-1B-Instruct-Q4_0.gguf).
+    GgufModelDef {
+        id: "llama-3.2-1b-bundled",
+        display_name: "Llama 3.2 1B (Q4_0, bundled)",
+        hf_repo: "bartowski/Llama-3.2-1B-Instruct-GGUF",
+        hf_filename: "Llama-3.2-1B-Instruct-Q4_0.gguf",
+        min_ram_gb: 4,
+        context_window: 128_000,
+        chat_template: ChatTemplateHint::Llama3,
+        backend: ModelBackend::Gguf,
+    },
     GgufModelDef {
         id: "qwen2.5-coder-1.5b-q4_k_m",
         display_name: "Qwen 2.5 Coder 1.5B (Q4_K_M)",
@@ -100,7 +112,7 @@ pub static MODEL_REGISTRY: &[GgufModelDef] = &[
         chat_template: ChatTemplateHint::Llama3,
         backend: ModelBackend::Gguf,
     },
-    // ── 8GB tier (Small) ───────────────────────────────────────────────────
+    // ── 8GB tier (Small); high-end iOS possible ────────────────────────────
     GgufModelDef {
         id: "qwen2.5-coder-7b-q4_k_m",
         display_name: "Qwen 2.5 Coder 7B (Q4_K_M)",
@@ -131,7 +143,7 @@ pub static MODEL_REGISTRY: &[GgufModelDef] = &[
         chat_template: ChatTemplateHint::DeepSeek,
         backend: ModelBackend::Gguf,
     },
-    // ── 16GB tier (Medium) ─────────────────────────────────────────────────
+    // ── 16GB tier (Medium); not for typical iOS phones ─────────────────────
     GgufModelDef {
         id: "qwen2.5-coder-14b-q4_k_m",
         display_name: "Qwen 2.5 Coder 14B (Q4_K_M)",
@@ -172,7 +184,7 @@ pub static MODEL_REGISTRY: &[GgufModelDef] = &[
         chat_template: ChatTemplateHint::Llama3,
         backend: ModelBackend::Gguf,
     },
-    // ── 32GB tier (Large) ──────────────────────────────────────────────────
+    // ── 32GB tier (Large); desktop only ────────────────────────────────────
     GgufModelDef {
         id: "qwen2.5-coder-32b-q4_k_m",
         display_name: "Qwen 2.5 Coder 32B (Q4_K_M)",
