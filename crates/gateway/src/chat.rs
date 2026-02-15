@@ -2914,7 +2914,16 @@ impl ChatService for LiveChatService {
             .get("_conn_id")
             .and_then(|v| v.as_str())
             .map(String::from);
-        let session_key = self.session_key_for(conn_id.as_deref()).await;
+        // Resolve session from params so clients (e.g. Flutter app) can request a specific
+        // session; fall back to connection-scoped active session (web UI behaviour).
+        let session_key = match params
+            .get("sessionKey")
+            .or(params.get("_session_key"))
+            .and_then(|v| v.as_str())
+        {
+            Some(sk) if !sk.trim().is_empty() => sk.trim().to_string(),
+            _ => self.session_key_for(conn_id.as_deref()).await,
+        };
         let messages = self
             .session_store
             .read(&session_key)

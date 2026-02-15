@@ -2470,22 +2470,27 @@ pub async fn start_gateway(
     {
         let broadcaster = Arc::new(GatewayApprovalBroadcaster::new(Arc::clone(&state)));
         let env_provider: Arc<dyn EnvVarProvider> = credential_store.clone();
-        let exec_tool = moltis_tools::exec::ExecTool::default()
-            .with_approval(Arc::clone(&approval_manager), broadcaster)
-            .with_sandbox_router(Arc::clone(&sandbox_router))
-            .with_env_provider(env_provider);
-
-        let cron_tool = moltis_tools::cron_tool::CronTool::new(Arc::clone(&cron_service));
 
         let mut tool_registry = moltis_agents::tool_registry::ToolRegistry::new();
-        let process_tool = moltis_tools::process::ProcessTool::new()
-            .with_sandbox_router(Arc::clone(&sandbox_router));
+
+        // On iOS there is no shell/container; do not register exec or process so they are never offered.
+        #[cfg(not(target_os = "ios"))]
+        {
+            let exec_tool = moltis_tools::exec::ExecTool::default()
+                .with_approval(Arc::clone(&approval_manager), broadcaster)
+                .with_sandbox_router(Arc::clone(&sandbox_router))
+                .with_env_provider(env_provider.clone());
+            let process_tool = moltis_tools::process::ProcessTool::new()
+                .with_sandbox_router(Arc::clone(&sandbox_router));
+            tool_registry.register(Box::new(exec_tool));
+            tool_registry.register(Box::new(process_tool));
+        }
+
+        let cron_tool = moltis_tools::cron_tool::CronTool::new(Arc::clone(&cron_service));
 
         let sandbox_packages_tool = moltis_tools::sandbox_packages::SandboxPackagesTool::new()
             .with_sandbox_router(Arc::clone(&sandbox_router));
 
-        tool_registry.register(Box::new(exec_tool));
-        tool_registry.register(Box::new(process_tool));
         tool_registry.register(Box::new(sandbox_packages_tool));
         tool_registry.register(Box::new(cron_tool));
         if let Some(t) =
